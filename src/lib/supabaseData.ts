@@ -324,12 +324,14 @@ export async function createAgendamento(payload: any) {
       // se erro, não bloquear para não quebrar fluxo; logar e prosseguir com duracao padrao
       console.error('Erro ao buscar servicos de agendamentos:', linhasErr);
     } else {
+      console.log('Linhas de servicos retornadas para agendamentos existentes:', linhasServ);
       // agrupar durações por agendamento
       for (const row of (linhasServ || [])) {
         const aid = row.id_agendamento;
         const d = Number((row as any)?.servico?.duracao_min ?? 30) || 30;
         duracoesPorAg[aid] = (duracoesPorAg[aid] || 0) + d;
       }
+      console.log('Duracoes por agendamento calculadas:', duracoesPorAg);
     }
   }
 
