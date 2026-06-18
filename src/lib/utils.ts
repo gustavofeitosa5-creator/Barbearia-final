@@ -163,10 +163,17 @@ export function getHorariosDisponiveis(
       if (isSameDay && dataHora <= agora) continue;
 
       const bloqueado = indisponibilidades.some(indis => {
-        const [indDay, indMonth, indYear] = indis.data.split('/').map(Number);
-        if (!indDay || !indMonth || !indYear) return false;
+        let dataIndisponivel: Date;
+        if (indis.data.includes('/')) {
+          const [indDay, indMonth, indYear] = indis.data.split('/').map(Number);
+          if (!indDay || !indMonth || !indYear) return false;
+          dataIndisponivel = new Date(indYear, indMonth - 1, indDay);
+        } else {
+          const [indYear, indMonth, indDay] = indis.data.split('-').map(Number);
+          if (!indDay || !indMonth || !indYear) return false;
+          dataIndisponivel = new Date(indYear, indMonth - 1, indDay);
+        }
 
-        const dataIndisponivel = new Date(indYear, indMonth - 1, indDay);
         if (dataIndisponivel.toDateString() !== dataSelecionada.toDateString()) return false;
 
         const [startHour, startMin] = indis.hora_inicio.split(':').map(Number);
