@@ -310,27 +310,35 @@ export async function createAgendamento(payload: any) {
 
   if (errorCheck) throw errorCheck;
 
-  // Para cada agendamento existente, buscar os serviços relacionados e somar suas durações
-  const temConflito = await Promise.all((agendamentosExistentes || []).map(async (ag: any) => {
-    const { data: linhas, error: servError } = await supabase
+  // Buscar todas as linhas de serviços para os agendamentos existentes de uma só vez
+  const agIds = (agendamentosExistentes || []).map((a: any) => a.id);
+  let duracoesPorAg: Record<string, number> = {};
+
+  if (agIds.length > 0) {
+    const { data: linhasServ, error: linhasErr } = await supabase
       .from(AGENDAMENTO_SERVICO_TABLE)
-      .select('id_servico, servico:tb_servico(duracao_min)')
-      .eq('id_agendamento', ag.id);
+      .select('id_agendamento, servico:tb_servico(duracao_min)')
+      .in('id_agendamento', agIds);
 
-    if (servError) {
-      // se houver problema ao buscar durações, assumir conflito seguro para evitar dupla reserva
-      return true;
+    if (linhasErr) {
+      // se erro, não bloquear para não quebrar fluxo; logar e prosseguir com duracao padrao
+      console.error('Erro ao buscar servicos de agendamentos:', linhasErr);
+    } else {
+      // agrupar durações por agendamento
+      for (const row of (linhasServ || [])) {
+        const aid = row.id_agendamento;
+        const d = Number(row?.servico?.duracao_min ?? 30) || 30;
+        duracoesPorAg[aid] = (duracoesPorAg[aid] || 0) + d;
+      }
     }
+  }
 
-    const duracaoExistente = (linhas ?? []).reduce((acc: number, l: any) => {
-      const d = l?.servico?.duracao_min ?? 30;
-      return acc + (Number(d) || 30);
-    }, 0);
-
+  const temConflito = (agendamentosExistentes || []).some((ag: any) => {
     const dataHoraExistente = new Date(ag.data_hora);
+    const duracaoExistente = duracoesPorAg[ag.id] ?? 30;
     const dataHoraFimExistente = new Date(dataHoraExistente.getTime() + duracaoExistente * 60000);
-    return dataHoraAgendamento < dataHoraFimExistente && dataHoraFim > dataHoraExistente;
-  })).then(results => results.some(r => r));
+    return dataHoraAgendamento.getTime() < dataHoraFimExistente.getTime() && dataHoraFim.getTime() > dataHoraExistente.getTime();
+  });
 
   if (temConflito) {
     throw new Error('Este horário não está disponível. Outro agendamento conflita com o seu horário selecionado.');
