@@ -1,6 +1,13 @@
 import { format, formatDistanceToNow, isToday, isTomorrow, isPast, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+function parseSqlDate(dateString: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateString);
+  if (!match) return new Date(dateString);
+  const [, year, month, day] = match;
+  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 0, 0, 0, 0);
+}
+
 export function formatCurrency(value: number): string {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
@@ -9,7 +16,7 @@ export function formatCurrency(value: number): string {
 }
 
 export function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseSqlDate(dateString);
   if (!isValid(date)) return dateString;
   if (isToday(date)) return 'Hoje';
   if (isTomorrow(date)) return 'Amanhã';
@@ -17,19 +24,19 @@ export function formatDate(dateString: string): string {
 }
 
 export function formatDateTime(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseSqlDate(dateString);
   if (!isValid(date)) return dateString;
   return format(date, "d/MM/yyyy 'às' HH:mm", { locale: ptBR });
 }
 
 export function formatTime(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseSqlDate(dateString);
   if (!isValid(date)) return '';
   return format(date, 'HH:mm');
 }
 
 export function formatRelativeTime(dateString: string): string {
-  const date = new Date(dateString);
+  const date = parseSqlDate(dateString);
   if (!isValid(date)) return '';
   return formatDistanceToNow(date, { addSuffix: true, locale: ptBR });
 }
@@ -42,7 +49,7 @@ export function formatDuration(minutes: number): string {
 }
 
 export function isDatePast(dateString: string): boolean {
-  return isPast(new Date(dateString));
+  return isPast(parseSqlDate(dateString));
 }
 
 export function normalizeDigits(value: string): string {
