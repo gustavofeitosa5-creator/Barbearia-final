@@ -2,10 +2,15 @@ import { format, formatDistanceToNow, isToday, isTomorrow, isPast, isValid } fro
 import { ptBR } from 'date-fns/locale';
 
 function parseSqlDate(dateString: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateString);
-  if (!match) return new Date(dateString);
-  const [, year, month, day] = match;
-  return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 0, 0, 0, 0);
+  if (!dateString) return new Date('');
+  // Se for apenas YYYY-MM-DD (sem hora), parse local para evitar shift de timezone
+  const onlyDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString);
+  if (onlyDateMatch) {
+    const [, year, month, day] = onlyDateMatch;
+    return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 0, 0, 0, 0);
+  }
+  // Se contém hora (ISO), usar o parser nativo (respeita offset/Z)
+  return new Date(dateString);
 }
 
 export function formatCurrency(value: number): string {
