@@ -284,105 +284,39 @@ export async function fetchAgendamentos(userId?: string, isAdmin?: boolean) {
 }
 
 export async function createAgendamento(payload: any) {
-  const dbPayload: any = {
-    id_usuario: payload.id_usuario,
-    id_barbeiro: payload.id_barbeiro,
-    data_hora: payload.data_hora,
-    status: payload.status ?? 'pendente',
-    observacao: payload.observacao ?? null,
-    preco_total: Number(payload.preco_total ?? 0),
+  // Usar RPC atômico no banco para checagem e inserção
+  const rpcPayload: any = {
+    p_id_barbeiro: payload.id_barbeiro,
+    p_data_hora: payload.data_hora,
+    p_servicos: payload.servicos ?? [],
+    p_observacao: payload.observacao ?? null,
+    p_preco_total: payload.preco_total ?? null,
   };
 
-  if (!dbPayload.id_usuario || !dbPayload.id_barbeiro || !dbPayload.data_hora) {
-    throw new Error('Payload de agendamento incompleto. Verifique barbeiro, data e horário.');
+  const { data: rpcData, error: rpcError } = await supabase.rpc('create_agendamento_rpc', rpcPayload);
+  if (rpcError) {
+    console.error('create_agendamento_rpc error', rpcError, rpcPayload);
+    throw rpcError;
   }
 
-  // Validar conflito de horário
-  const dataHoraAgendamento = new Date(dbPayload.data_hora);
-  const duracaoMinutos = payload.servicos?.reduce((acc: number, s: any) => acc + (s.duracao_minutos ?? 30), 0) ?? 30;
-  const dataHoraFim = new Date(dataHoraAgendamento.getTime() + duracaoMinutos * 60000);
+  const newId = Array.isArray(rpcData) ? rpcData[0]?.id || rpcData[0] : rpcData?.id || rpcData;
+  if (!newId) {
+    throw new Error('Falha ao criar agendamento via RPC: id não retornado');
+  }
 
-  const { data: agendamentosExistentes, error: errorCheck } = await supabase
+  // buscar registro completo com serviços e barbeiro
+  const { data: agData, error: agErr } = await supabase
     .from(AGENDAMENTO_TABLE)
-    .select('id, data_hora')
-    .eq('id_barbeiro', dbPayload.id_barbeiro)
-    .in('status', ['confirmado', 'pendente']);
-
-  if (errorCheck) throw errorCheck;
-
-  // Buscar todas as linhas de serviços para os agendamentos existentes de uma só vez
-  const agIds = (agendamentosExistentes || []).map((a: any) => a.id);
-  let duracoesPorAg: Record<string, number> = {};
-
-  if (agIds.length > 0) {
-    const { data: linhasServ, error: linhasErr } = await supabase
-      .from(AGENDAMENTO_SERVICO_TABLE)
-      .select('id_agendamento, servico:tb_servico(duracao_min)')
-      .in('id_agendamento', agIds);
-
-    if (linhasErr) {
-      // se erro, não bloquear para não quebrar fluxo; logar e prosseguir com duracao padrao
-      console.error('Erro ao buscar servicos de agendamentos:', linhasErr);
-    } else {
-      console.log('Linhas de servicos retornadas para agendamentos existentes:', linhasServ);
-      // agrupar durações por agendamento
-      for (const row of (linhasServ || [])) {
-        const aid = row.id_agendamento;
-        const d = Number((row as any)?.servico?.duracao_min ?? 30) || 30;
-        duracoesPorAg[aid] = (duracoesPorAg[aid] || 0) + d;
-      }
-      console.log('Duracoes por agendamento calculadas:', duracoesPorAg);
-    }
-  }
-
-  const temConflito = (agendamentosExistentes || []).some((ag: any) => {
-    const dataHoraExistente = new Date(ag.data_hora);
-    const duracaoExistente = duracoesPorAg[ag.id] ?? 30;
-    const dataHoraFimExistente = new Date(dataHoraExistente.getTime() + duracaoExistente * 60000);
-    return dataHoraAgendamento.getTime() < dataHoraFimExistente.getTime() && dataHoraFim.getTime() > dataHoraExistente.getTime();
-  });
-
-  if (temConflito) {
-    throw new Error('Este horário não está disponível. Outro agendamento conflita com o seu horário selecionado.');
-  }
-
-  if (payload.created_at) {
-    dbPayload.created_at = payload.created_at;
-  }
-  if (payload.updated_at) {
-    dbPayload.updated_at = payload.updated_at;
-  }
-
-  const { data, error } = await supabase
-    .from(AGENDAMENTO_TABLE)
-    .insert([dbPayload])
-    .select()
+    .select(`*, tb_barbeiro(*), servicos:tb_servico_has_tb_agendamento(preco_servico, servico:tb_servico(*))`)
+    .eq('id', newId)
     .single();
 
-  if (error) throw error;
-
-  const agendamento = normalizeAgendamento({ ...data, servicos: [] });
-
-  if (Array.isArray(payload.servicos) && payload.servicos.length > 0) {
-    const joinRows = payload.servicos.map((servico: any) => ({
-      id_agendamento: agendamento.id,
-      id_servico: servico.id,
-      preco_servico: Number(servico.preco ?? servico.preco_total ?? 0),
-    }));
-
-    const { error: joinError } = await supabase
-      .from(AGENDAMENTO_SERVICO_TABLE)
-      .insert(joinRows);
-
-    if (joinError) throw joinError;
-    agendamento.servicos = payload.servicos;
+  if (agErr) {
+    console.error('Erro ao buscar agendamento criado:', agErr);
+    throw agErr;
   }
 
-  if (payload.barbeiro) {
-    agendamento.barbeiro = payload.barbeiro;
-  }
-
-  return agendamento;
+  return normalizeAgendamento(agData);
 }
 
 export async function updateAgendamento(id: string, updates: any) {
