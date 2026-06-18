@@ -283,19 +283,68 @@ export async function fetchAgendamentos(userId?: string, isAdmin?: boolean) {
   return (data ?? []).map(normalizeAgendamento);
 }
 
+async function createAgendamentoFallback(payload: any) {
+  const dbPayload: any = {
+    id_usuario: payload.id_usuario,
+    id_barbeiro: payload.id_barbeiro,
+    data_hora: payload.data_hora,
+    status: payload.status ?? 'pendente',
+    observacao: payload.observacao ?? null,
+    preco_total: Number(payload.preco_total ?? 0),
+    created_at: payload.created_at ?? new Date().toISOString(),
+    updated_at: payload.updated_at ?? new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from(AGENDAMENTO_TABLE)
+    .insert([dbPayload])
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  const agendamento = normalizeAgendamento({ ...data, servicos: [] });
+
+  if (Array.isArray(payload.servicos) && payload.servicos.length > 0) {
+    const joinRows = payload.servicos.map((servico: any) => ({
+      id_agendamento: agendamento.id,
+      id_servico: servico.id,
+      preco_servico: Number(servico.preco ?? servico.preco_total ?? 0),
+    }));
+
+    const { error: joinError } = await supabase
+      .from(AGENDAMENTO_SERVICO_TABLE)
+      .insert(joinRows);
+
+    if (joinError) throw joinError;
+    agendamento.servicos = payload.servicos;
+  }
+
+  if (payload.barbeiro) {
+    agendamento.barbeiro = payload.barbeiro;
+  }
+
+  return agendamento;
+}
+
 export async function createAgendamento(payload: any) {
   // Usar RPC atômico no banco para checagem e inserção
   const rpcPayload: any = {
-    p_id_barbeiro: payload.id_barbeiro,
     p_data_hora: payload.data_hora,
-    p_servicos: payload.servicos ?? [],
+    p_id_barbeiro: payload.id_barbeiro,
     p_observacao: payload.observacao ?? null,
     p_preco_total: payload.preco_total ?? null,
+    p_servicos: payload.servicos ?? [],
   };
 
   const { data: rpcData, error: rpcError } = await supabase.rpc('create_agendamento_rpc', rpcPayload);
   if (rpcError) {
     console.error('create_agendamento_rpc error', rpcError, rpcPayload);
+    // Fallback quando a função ainda não existe no banco
+    if (rpcError.message?.includes('Could not find the function public.create_agendamento_rpc')) {
+      console.warn('RPC create_agendamento_rpc não encontrada. Usando fallback de inserção direta.');
+      return createAgendamentoFallback(payload);
+    }
     throw rpcError;
   }
 

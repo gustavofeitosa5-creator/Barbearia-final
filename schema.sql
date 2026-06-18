@@ -337,11 +337,11 @@ GRANT EXECUTE ON FUNCTION register_user(UUID, TEXT, TEXT, TEXT, TEXT) TO authent
 -- ============================================================
 
 CREATE OR REPLACE FUNCTION create_agendamento_rpc(
-  p_id_barbeiro UUID,
   p_data_hora TIMESTAMPTZ,
-  p_servicos JSONB DEFAULT '[]'::JSONB,
+  p_id_barbeiro UUID,
   p_observacao TEXT DEFAULT NULL,
-  p_preco_total NUMERIC DEFAULT NULL
+  p_preco_total NUMERIC DEFAULT NULL,
+  p_servicos JSONB DEFAULT '[]'::JSONB
 )
 RETURNS TABLE (id UUID)
 LANGUAGE plpgsql
