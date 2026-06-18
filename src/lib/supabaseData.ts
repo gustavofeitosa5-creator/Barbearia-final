@@ -327,7 +327,7 @@ export async function createAgendamento(payload: any) {
       // agrupar durações por agendamento
       for (const row of (linhasServ || [])) {
         const aid = row.id_agendamento;
-        const d = Number(row?.servico?.duracao_min ?? 30) || 30;
+        const d = Number((row as any)?.servico?.duracao_min ?? 30) || 30;
         duracoesPorAg[aid] = (duracoesPorAg[aid] || 0) + d;
       }
     }
