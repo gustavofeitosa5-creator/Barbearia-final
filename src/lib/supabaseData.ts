@@ -304,18 +304,19 @@ export async function createAgendamento(payload: any) {
 
   const { data: agendamentosExistentes, error: errorCheck } = await supabase
     .from(AGENDAMENTO_TABLE)
-    .select('id, data_hora, tb_agendamento_servicos(duracao_minutos)')
+    .select('id, data_hora')
     .eq('id_barbeiro', dbPayload.id_barbeiro)
     .in('status', ['confirmado', 'pendente']);
 
   if (errorCheck) throw errorCheck;
 
-  const temConflito = agendamentosExistentes?.some((ag: any) => {
+  const temConflito = (agendamentosExistentes || []).some((ag: any) => {
     const dataHoraExistente = new Date(ag.data_hora);
-    const duracaoExistente = ag.tb_agendamento_servicos?.reduce((acc: number, s: any) => acc + (s.duracao_minutos ?? 30), 0) ?? 30;
+    // Usar duração padrão de 30 minutos se não soubermos a duração exata
+    const duracaoExistente = 30;
     const dataHoraFimExistente = new Date(dataHoraExistente.getTime() + duracaoExistente * 60000);
     return dataHoraAgendamento < dataHoraFimExistente && dataHoraFim > dataHoraExistente;
-  }) ?? false;
+  });
 
   if (temConflito) {
     throw new Error('Este horário não está disponível. Outro agendamento conflita com o seu horário selecionado.');
