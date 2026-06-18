@@ -297,6 +297,30 @@ export async function createAgendamento(payload: any) {
     throw new Error('Payload de agendamento incompleto. Verifique barbeiro, data e horário.');
   }
 
+  // Validar conflito de horário
+  const dataHoraAgendamento = new Date(dbPayload.data_hora);
+  const duracaoMinutos = payload.servicos?.reduce((acc: number, s: any) => acc + (s.duracao_minutos ?? 30), 0) ?? 30;
+  const dataHoraFim = new Date(dataHoraAgendamento.getTime() + duracaoMinutos * 60000);
+
+  const { data: agendamentosExistentes, error: errorCheck } = await supabase
+    .from(AGENDAMENTO_TABLE)
+    .select('id, data_hora, tb_agendamento_servicos(duracao_minutos)')
+    .eq('id_barbeiro', dbPayload.id_barbeiro)
+    .in('status', ['confirmado', 'pendente']);
+
+  if (errorCheck) throw errorCheck;
+
+  const temConflito = agendamentosExistentes?.some((ag: any) => {
+    const dataHoraExistente = new Date(ag.data_hora);
+    const duracaoExistente = ag.tb_agendamento_servicos?.reduce((acc: number, s: any) => acc + (s.duracao_minutos ?? 30), 0) ?? 30;
+    const dataHoraFimExistente = new Date(dataHoraExistente.getTime() + duracaoExistente * 60000);
+    return dataHoraAgendamento < dataHoraFimExistente && dataHoraFim > dataHoraExistente;
+  }) ?? false;
+
+  if (temConflito) {
+    throw new Error('Este horário não está disponível. Outro agendamento conflita com o seu horário selecionado.');
+  }
+
   if (payload.created_at) {
     dbPayload.created_at = payload.created_at;
   }

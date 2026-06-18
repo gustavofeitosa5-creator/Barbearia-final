@@ -107,6 +107,23 @@ export function AgendarPage({ onNavigate, onAgendamentoCriado, agendamentos = []
     }
 
     try {
+      // Validar se o horário ainda está disponível
+      const horariosValidos = getHorariosDisponiveis(
+        dateSql,
+        totalDuracao || 30,
+        indisponibilidades.filter((item) => item.id_barbeiro === state.barbeiro?.id),
+        agendamentosDoBareiro.map((ag) => ({
+          data_hora: ag.data_hora,
+          duracao_minutos: ag.servicos?.reduce((acc, s) => acc + (s.duracao_min ?? s.duracao_minutos ?? 0), 0) ?? 30,
+        }))
+      );
+
+      if (!state.hora || !horariosValidos.includes(state.hora)) {
+        toast.error('O horário selecionado não está mais disponível. Escolha outro horário.');
+        setLoading(false);
+        return;
+      }
+
       const agendamento = await createAgendamento({
         id_usuario: user.id,
         id_barbeiro: state.barbeiro.id,
