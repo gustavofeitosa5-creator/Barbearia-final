@@ -110,7 +110,8 @@ export function isDateMaskValid(value: string): boolean {
 export function parseDateMask(value: string): Date | null {
   if (!isDateMaskValid(value)) return null;
   const [day, month, year] = value.split('/').map(Number);
-  return new Date(year, month - 1, day);
+  const dateStr = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  return new Date(`${dateStr}T00:00:00Z`);
 }
 
 export function formatDateToMask(date: Date): string {
@@ -141,16 +142,17 @@ export function getHorariosDisponiveis(
   data: string,
   duracaoMinutos: number,
   indisponibilidades: { id_barbeiro: string; data: string; hora_inicio: string; hora_fim: string }[] = [],
+  agendamentosExistentes: { data_hora: string; duracao_minutos?: number }[] = [],
 ): string[] {
   const horarios: string[] = [];
   const agora = new Date();
   const [year, month, day] = data.split('-').map(Number);
   if (!year || !month || !day) return [];
 
-  const dataSelecionada = new Date(year, month - 1, day);
+  const dataSelecionada = new Date(`${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00Z`);
   if (!isValid(dataSelecionada)) return [];
 
-  const isSameDay = dataSelecionada.toDateString() === agora.toDateString();
+  const isSameDay = dataSelecionada.toUTCString().split(' ').slice(0, 4).join(' ') === agora.toUTCString().split(' ').slice(0, 4).join(' ');
 
   for (let hora = WORK_HOURS.inicio; hora < WORK_HOURS.fim; hora++) {
     for (let min = 0; min < 60; min += WORK_HOURS.intervalo) {
@@ -158,32 +160,44 @@ export function getHorariosDisponiveis(
       if (horarioFim > WORK_HOURS.fim * 60) break;
 
       const dataHora = new Date(dataSelecionada);
-      dataHora.setHours(hora, min, 0, 0);
+      dataHora.setUTCHours(hora, min, 0, 0);
 
       if (isSameDay && dataHora <= agora) continue;
 
-      const bloqueado = indisponibilidades.some(indis => {
+      let bloqueado = false;
+
+      bloqueado = indisponibilidades.some(indis => {
         let dataIndisponivel: Date;
         if (indis.data.includes('/')) {
           const [indDay, indMonth, indYear] = indis.data.split('/').map(Number);
           if (!indDay || !indMonth || !indYear) return false;
-          dataIndisponivel = new Date(indYear, indMonth - 1, indDay);
+          dataIndisponivel = new Date(`${String(indYear).padStart(4, '0')}-${String(indMonth).padStart(2, '0')}-${String(indDay).padStart(2, '0')}T00:00:00Z`);
         } else {
           const [indYear, indMonth, indDay] = indis.data.split('-').map(Number);
           if (!indDay || !indMonth || !indYear) return false;
-          dataIndisponivel = new Date(indYear, indMonth - 1, indDay);
+          dataIndisponivel = new Date(`${String(indYear).padStart(4, '0')}-${String(indMonth).padStart(2, '0')}-${String(indDay).padStart(2, '0')}T00:00:00Z`);
         }
 
-        if (dataIndisponivel.toDateString() !== dataSelecionada.toDateString()) return false;
+        if (dataIndisponivel.toUTCString().split(' ').slice(0, 4).join(' ') !== dataSelecionada.toUTCString().split(' ').slice(0, 4).join(' ')) return false;
 
         const [startHour, startMin] = indis.hora_inicio.split(':').map(Number);
         const [endHour, endMin] = indis.hora_fim.split(':').map(Number);
         const inicio = new Date(dataSelecionada);
-        inicio.setHours(startHour, startMin, 0, 0);
+        inicio.setUTCHours(startHour, startMin, 0, 0);
         const fim = new Date(dataSelecionada);
-        fim.setHours(endHour, endMin, 0, 0);
+        fim.setUTCHours(endHour, endMin, 0, 0);
         return dataHora >= inicio && dataHora < fim;
       });
+
+      if (!bloqueado) {
+        bloqueado = agendamentosExistentes.some(ag => {
+          const agDataHora = new Date(ag.data_hora);
+          const agDuracao = ag.duracao_minutos ?? 30;
+          const agFim = new Date(agDataHora.getTime() + agDuracao * 60000);
+          const meuFim = new Date(dataHora.getTime() + duracaoMinutos * 60000);
+          return dataHora < agFim && meuFim > agDataHora;
+        });
+      }
 
       if (!bloqueado) {
         horarios.push(`${String(hora).padStart(2, '0')}:${String(min).padStart(2, '0')}`);

@@ -172,6 +172,7 @@ function AppContent({ theme, onToggleTheme }: { theme: 'dark' | 'light'; onToggl
           <AgendarPage
             onNavigate={navigate}
             onAgendamentoCriado={handleAgendamentoCriado}
+            agendamentos={agendamentos}
           />
         );
 

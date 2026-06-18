@@ -13,11 +13,12 @@ import { useAuth } from '../contexts/AuthContext';
 interface AgendarPageProps {
   onNavigate: (page: string) => void;
   onAgendamentoCriado: (ag: Agendamento) => void;
+  agendamentos?: Agendamento[];
 }
 
 const STEPS = ['Barbeiro', 'Serviço', 'Data', 'Horário', 'Confirmar'];
 
-export function AgendarPage({ onNavigate, onAgendamentoCriado }: AgendarPageProps) {
+export function AgendarPage({ onNavigate, onAgendamentoCriado, agendamentos = [] }: AgendarPageProps) {
   const { user } = useAuth();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -56,11 +57,21 @@ export function AgendarPage({ onNavigate, onAgendamentoCriado }: AgendarPageProp
   const totalPreco = state.servicos.reduce((acc, s) => acc + s.preco, 0);
 
   const dateSql = state.data ? formatDateToSql(state.data) : null;
+  const agendamentosDoBareiro = agendamentos.filter(
+    (ag) =>
+      ag.id_barbeiro === state.barbeiro?.id &&
+      ag.status !== 'cancelado' &&
+      ag.data_hora.startsWith(dateSql || '')
+  );
   const horarios = dateSql
     ? getHorariosDisponiveis(
         dateSql,
         totalDuracao || 30,
-        indisponibilidades.filter(item => item.id_barbeiro === state.barbeiro?.id),
+        indisponibilidades.filter((item) => item.id_barbeiro === state.barbeiro?.id),
+        agendamentosDoBareiro.map((ag) => ({
+          data_hora: ag.data_hora,
+          duracao_minutos: ag.servicos?.reduce((acc, s) => acc + (s.duracao_min ?? s.duracao_minutos ?? 0), 0) ?? 30,
+        }))
       )
     : [];
 
