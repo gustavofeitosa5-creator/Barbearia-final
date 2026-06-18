@@ -110,8 +110,7 @@ export function isDateMaskValid(value: string): boolean {
 export function parseDateMask(value: string): Date | null {
   if (!isDateMaskValid(value)) return null;
   const [day, month, year] = value.split('/').map(Number);
-  const dateStr = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  return new Date(`${dateStr}T00:00:00Z`);
+  return new Date(year, month - 1, day, 0, 0, 0, 0);
 }
 
 export function formatDateToMask(date: Date): string {
@@ -138,6 +137,12 @@ export function isDateOnOrAfterToday(value: string): boolean {
   return date >= today;
 }
 
+function isSameDateLocal(date1: Date, date2: Date): boolean {
+  return date1.getFullYear() === date2.getFullYear() &&
+         date1.getMonth() === date2.getMonth() &&
+         date1.getDate() === date2.getDate();
+}
+
 export function getHorariosDisponiveis(
   data: string,
   duracaoMinutos: number,
@@ -149,10 +154,10 @@ export function getHorariosDisponiveis(
   const [year, month, day] = data.split('-').map(Number);
   if (!year || !month || !day) return [];
 
-  const dataSelecionada = new Date(`${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T00:00:00Z`);
+  const dataSelecionada = new Date(year, month - 1, day, 0, 0, 0, 0);
   if (!isValid(dataSelecionada)) return [];
 
-  const isSameDay = dataSelecionada.toUTCString().split(' ').slice(0, 4).join(' ') === agora.toUTCString().split(' ').slice(0, 4).join(' ');
+  const isSameDay = isSameDateLocal(dataSelecionada, agora);
 
   for (let hora = WORK_HOURS.inicio; hora < WORK_HOURS.fim; hora++) {
     for (let min = 0; min < 60; min += WORK_HOURS.intervalo) {
@@ -160,7 +165,7 @@ export function getHorariosDisponiveis(
       if (horarioFim > WORK_HOURS.fim * 60) break;
 
       const dataHora = new Date(dataSelecionada);
-      dataHora.setUTCHours(hora, min, 0, 0);
+      dataHora.setHours(hora, min, 0, 0);
 
       if (isSameDay && dataHora <= agora) continue;
 
@@ -171,21 +176,21 @@ export function getHorariosDisponiveis(
         if (indis.data.includes('/')) {
           const [indDay, indMonth, indYear] = indis.data.split('/').map(Number);
           if (!indDay || !indMonth || !indYear) return false;
-          dataIndisponivel = new Date(`${String(indYear).padStart(4, '0')}-${String(indMonth).padStart(2, '0')}-${String(indDay).padStart(2, '0')}T00:00:00Z`);
+          dataIndisponivel = new Date(indYear, indMonth - 1, indDay, 0, 0, 0, 0);
         } else {
           const [indYear, indMonth, indDay] = indis.data.split('-').map(Number);
           if (!indDay || !indMonth || !indYear) return false;
-          dataIndisponivel = new Date(`${String(indYear).padStart(4, '0')}-${String(indMonth).padStart(2, '0')}-${String(indDay).padStart(2, '0')}T00:00:00Z`);
+          dataIndisponivel = new Date(indYear, indMonth - 1, indDay, 0, 0, 0, 0);
         }
 
-        if (dataIndisponivel.toUTCString().split(' ').slice(0, 4).join(' ') !== dataSelecionada.toUTCString().split(' ').slice(0, 4).join(' ')) return false;
+        if (!isSameDateLocal(dataIndisponivel, dataSelecionada)) return false;
 
         const [startHour, startMin] = indis.hora_inicio.split(':').map(Number);
         const [endHour, endMin] = indis.hora_fim.split(':').map(Number);
         const inicio = new Date(dataSelecionada);
-        inicio.setUTCHours(startHour, startMin, 0, 0);
+        inicio.setHours(startHour, startMin, 0, 0);
         const fim = new Date(dataSelecionada);
-        fim.setUTCHours(endHour, endMin, 0, 0);
+        fim.setHours(endHour, endMin, 0, 0);
         return dataHora >= inicio && dataHora < fim;
       });
 
