@@ -199,28 +199,31 @@ export function AdminBarbeiros() {
         <div className="grid grid-cols-1 gap-4">
           {barbeiros.map(b => (
             <Card key={b.id}>
-              <div className="p-5 flex items-center gap-4">
+              <div className="p-5 flex flex-col gap-4 sm:flex-row sm:items-center">
                 <div className="relative shrink-0">
                   {b.foto_url ? (
-                    <img src={b.foto_url} alt={b.nome} className="w-14 h-14 rounded-2xl object-cover" />
+                    <img src={b.foto_url} alt={b.nome} className="w-20 h-20 rounded-2xl object-cover" />
                   ) : (
-                    <div className="w-14 h-14 rounded-2xl bg-[#D4A853]/20 flex items-center justify-center">
-                      <span className="text-xl font-bold text-[#D4A853]">{b.nome.charAt(0)}</span>
+                    <div className="w-20 h-20 rounded-2xl bg-[#D4A853]/20 flex items-center justify-center">
+                      <span className="text-2xl font-bold text-[#D4A853]">{b.nome.charAt(0)}</span>
                     </div>
                   )}
                   <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#1C1C1E] ${b.ativo ? 'bg-emerald-400' : 'bg-[#6B7280]'}`} />
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-[#F9FAFB]">{b.nome}</p>
-                  <p className="text-sm text-[#9CA3AF]">{b.especialidade}</p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <StarRating rating={Math.round(b.avaliacao_media || 0)} size={12} />
-                    <span className="text-xs text-[#6B7280]">{b.avaliacao_media || 0} ({b.total_avaliacoes || 0})</span>
+                  <p className="font-semibold text-[#F9FAFB] truncate">{b.nome}</p>
+                  <p className="text-sm text-[#9CA3AF] truncate">{b.especialidade}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-[#6B7280]">
+                    <span className="inline-flex items-center gap-1">
+                      <StarRating rating={Math.round(b.avaliacao_media || 0)} size={12} />
+                      {b.avaliacao_media || 0}
+                    </span>
+                    <span>({b.total_avaliacoes || 0})</span>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 justify-end sm:justify-start">
                   <button
                     onClick={() => openEdit(b)}
                     className="p-2 text-[#9CA3AF] hover:text-[#F9FAFB] hover:bg-white/5 rounded-lg transition-colors"
@@ -272,15 +275,17 @@ export function AdminBarbeiros() {
           />
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-[var(--color-text)]">Foto</label>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button variant="secondary" onClick={() => document.getElementById('barber-photo-input')?.click()}>
                 Selecionar foto
               </Button>
-              {form.foto_url ? (
-                <span className="text-sm text-[var(--color-muted)] line-clamp-1">{selectedPhotoName || 'Foto pronta'}</span>
-              ) : (
-                <span className="text-sm text-[var(--color-muted)]">Nenhuma foto selecionada</span>
-              )}
+              <p className="text-sm text-[var(--color-muted)] break-words max-w-full">
+                {selectedPhotoName
+                  ? selectedPhotoName
+                  : form.foto_url
+                    ? 'Foto atual carregada'
+                    : 'Nenhuma foto selecionada'}
+              </p>
             </div>
             <input
               id="barber-photo-input"

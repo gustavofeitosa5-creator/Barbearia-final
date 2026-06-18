@@ -121,16 +121,7 @@ function normalizeAvaliacao(row: any) {
   };
 }
 
-function normalizeStoragePath(path: string) {
-  return String(path)
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/\s+/g, '_')
-    .replace(/[^a-zA-Z0-9._\/-]/g, '_')
-    .replace(/\/+/g, '/')
-    .replace(/__+/g, '_')
-    .replace(/^[_\-.]+|[_\-.]+$/g, '');
-}
+
 function normalizeAgendamento(row: any) {
   const services = Array.isArray(row.servicos)
     ? row.servicos.map((item: any) => normalizeServico(item.servico || item))
@@ -159,53 +150,40 @@ export async function fetchBarbeiros() {
 }
 
 export async function createBarbeiro(payload: any) {
-  const dbPayload: any = {
-    nome: payload.nome,
-    especialidade: payload.especialidade ?? null,
-    foto_url: payload.foto_url ?? null,
-    bio: payload.bio ?? null,
-    ativo: payload.ativo ?? true,
-    media_avaliacao: Number(payload.media_avaliacao ?? payload.avaliacao_media ?? 0),
-    created_at: payload.created_at ?? new Date().toISOString(),
-    updated_at: payload.updated_at ?? payload.created_at ?? new Date().toISOString(),
+  const rpcPayload: any = {
+    p_nome: payload.nome,
+    p_especialidade: payload.especialidade ?? null,
+    p_foto_url: payload.foto_url ?? null,
+    p_bio: payload.bio ?? null,
+    p_ativo: payload.ativo ?? true,
+    p_media_avaliacao: Number(payload.media_avaliacao ?? payload.avaliacao_media ?? 0),
   };
-  
-  // Only include id if it's provided
-  if (payload.id) {
-    dbPayload.id = payload.id;
-  }
 
-  const { data, error } = await supabase
-    .from(BARBEIRO_TABLE)
-    .insert([dbPayload])
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('create_barbeiro_admin', rpcPayload);
   if (error) {
-    console.error('createBarbeiro database error:', { error, payload: dbPayload });
+    console.error('createBarbeiro RPC error:', { error, payload: rpcPayload });
     throw error;
   }
-  return normalizeBarbeiro(data);
+  return normalizeBarbeiro(data as any);
 }
 
 export async function updateBarbeiro(id: string, updates: any) {
-  const dbUpdates = {
-    nome: updates.nome,
-    especialidade: updates.especialidade ?? null,
-    foto_url: updates.foto_url ?? null,
-    bio: updates.bio ?? null,
-    ativo: updates.ativo,
-    media_avaliacao: updates.media_avaliacao ?? updates.avaliacao_media,
-    updated_at: updates.updated_at ?? new Date().toISOString(),
+  const rpcPayload: any = {
+    p_id: id,
+    p_nome: updates.nome,
+    p_especialidade: updates.especialidade ?? null,
+    p_foto_url: updates.foto_url ?? null,
+    p_bio: updates.bio ?? null,
+    p_ativo: updates.ativo ?? null,
+    p_media_avaliacao: updates.media_avaliacao ?? updates.avaliacao_media ?? null,
   };
 
-  const { data, error } = await supabase
-    .from(BARBEIRO_TABLE)
-    .update(dbUpdates)
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-  return normalizeBarbeiro(data);
+  const { data, error } = await supabase.rpc('update_barbeiro_admin', rpcPayload);
+  if (error) {
+    console.error('updateBarbeiro RPC error:', { error, payload: rpcPayload });
+    throw error;
+  }
+  return normalizeBarbeiro(data as any);
 }
 
 export async function deleteBarbeiro(id: string) {
@@ -611,7 +589,8 @@ export async function uploadToBucket(bucket: string, path: string, file: File) {
 }
 
 export async function getPublicUrl(bucket: string, path: string) {
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  const normalizedPath = normalizeStoragePath(path);
+  const { data } = supabase.storage.from(bucket).getPublicUrl(normalizedPath);
   return data?.publicUrl ?? null;
 }
 

@@ -137,6 +137,56 @@ export function isDateOnOrAfterToday(value: string): boolean {
   return date >= today;
 }
 
+export function getHorariosDisponiveis(
+  data: string,
+  duracaoMinutos: number,
+  indisponibilidades: { id_barbeiro: string; data: string; hora_inicio: string; hora_fim: string }[] = [],
+): string[] {
+  const horarios: string[] = [];
+  const agora = new Date();
+  const [year, month, day] = data.split('-').map(Number);
+  if (!year || !month || !day) return [];
+
+  const dataSelecionada = new Date(year, month - 1, day);
+  if (!isValid(dataSelecionada)) return [];
+
+  const isSameDay = dataSelecionada.toDateString() === agora.toDateString();
+
+  for (let hora = WORK_HOURS.inicio; hora < WORK_HOURS.fim; hora++) {
+    for (let min = 0; min < 60; min += WORK_HOURS.intervalo) {
+      const horarioFim = hora * 60 + min + duracaoMinutos;
+      if (horarioFim > WORK_HOURS.fim * 60) break;
+
+      const dataHora = new Date(dataSelecionada);
+      dataHora.setHours(hora, min, 0, 0);
+
+      if (isSameDay && dataHora <= agora) continue;
+
+      const bloqueado = indisponibilidades.some(indis => {
+        const [indDay, indMonth, indYear] = indis.data.split('/').map(Number);
+        if (!indDay || !indMonth || !indYear) return false;
+
+        const dataIndisponivel = new Date(indYear, indMonth - 1, indDay);
+        if (dataIndisponivel.toDateString() !== dataSelecionada.toDateString()) return false;
+
+        const [startHour, startMin] = indis.hora_inicio.split(':').map(Number);
+        const [endHour, endMin] = indis.hora_fim.split(':').map(Number);
+        const inicio = new Date(dataSelecionada);
+        inicio.setHours(startHour, startMin, 0, 0);
+        const fim = new Date(dataSelecionada);
+        fim.setHours(endHour, endMin, 0, 0);
+        return dataHora >= inicio && dataHora < fim;
+      });
+
+      if (!bloqueado) {
+        horarios.push(`${String(hora).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+      }
+    }
+  }
+
+  return horarios;
+}
+
 export function getStatusLabel(status: string): string {
   const map: Record<string, string> = {
     pendente: 'Pendente',
